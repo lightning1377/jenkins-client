@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { BuildDetails, BuildStatus } from "../types/jenkins";
+import type { BuildDetails } from "../types/jenkins";
 
 export class StatusBarManager {
     public readonly statusBarItem: vscode.StatusBarItem;
@@ -10,7 +10,12 @@ export class StatusBarManager {
         this.statusBarItem.show();
     }
 
-    updateStatus(buildDetails: BuildDetails): void {
+    /**
+     * Updates status bar item display based on passed buildDetails
+     * @param buildDetails details of target build
+     * @returns true if build is in progress, false otherwise
+     */
+    updateStatus(buildDetails: BuildDetails): boolean {
         const statusIcons = {
             SUCCESS: "$(check)",
             FAILURE: "$(x)",
@@ -32,6 +37,8 @@ export class StatusBarManager {
         } else {
             this.statusBarItem.backgroundColor = undefined;
         }
+
+        return buildStatus == "IN_PROGRESS";
     }
 
     dispose(): void {
