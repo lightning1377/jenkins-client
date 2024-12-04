@@ -1,6 +1,8 @@
 {
   "name": "jenkins-build-status",
   "displayName": "Jenkins Build Status",
+  "icon": "icon.png",
+  "publisher": "Siavash",
   "description": "Show Jenkins build results for current git branch",
   "version": "0.1.0",
   "engines": {
@@ -9,7 +11,10 @@
   "categories": [
     "Other"
   ],
-  "main": "./out/src/extension.js",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "contributes": {
     "commands": [
       {
@@ -46,22 +51,14 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src --ext ts",
-    "test": "node ./out/test/runTest.js"
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/glob": "^8.1.0",
-    "@types/mocha": "^10.0.1",
     "@types/node": "^20.4.5",
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^6.2.0",
     "@typescript-eslint/parser": "^6.2.0",
-    "@vscode/test-electron": "^2.3.4",
     "eslint": "^8.45.0",
-    "glob": "^10.3.3",
-    "mocha": "^10.2.0",
     "typescript": "^5.1.6"
   },
   "dependencies": {

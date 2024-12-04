@@ -1,78 +1,153 @@
-import axios from 'axios';
-import * as vscode from 'vscode';
-import { BuildStatus, BuildDetails } from '../types/jenkins';
+import axios, { AxiosRequestConfig } from "axios";
+import * as vscode from "vscode";
+import { hasLastBuiltRevision, type BuildDetails, type BuildStatus, type JobInfo } from "../types/jenkins";
 
 export class JenkinsService {
     private config: vscode.WorkspaceConfiguration;
+    private authHeader: string;
+    private jenkinsUrl?: string;
+    private jobName?: string;
+    private cache: { buildDetails: Record<number, BuildDetails> } = { buildDetails: {} };
+    private outputChannel: vscode.OutputChannel;
 
-    constructor() {
-        this.config = vscode.workspace.getConfiguration('jenkinsBuildStatus');
+    constructor(outputChannel: vscode.OutputChannel) {
+        // Load Jenkins configuration from workspace settings
+        this.config = vscode.workspace.getConfiguration("jenkinsBuildStatus");
+
+        // Retrieve configuration settings
+        this.jenkinsUrl = this.config.get<string>("jenkinsUrl");
+        const username = this.config.get<string>("username");
+        const apiToken = this.config.get<string>("apiToken");
+        this.jobName = this.config.get<string>("jobName");
+
+        // Prepare the Basic Authentication header
+        const credentials = `${username}:${apiToken}`;
+        this.authHeader = `Basic ${btoa(credentials)}`;
+
+        this.outputChannel = outputChannel;
     }
 
-    private getAuthConfig() {
-        const username = this.config.get<string>('username');
-        const apiToken = this.config.get<string>('apiToken');
-        
-        if (!username || !apiToken) {
-            throw new Error('Jenkins credentials are not configured');
+    async getIsReady(): Promise<boolean> {
+        this.outputChannel.appendLine("Checking if we're connected to Jenkins...");
+        if (!this.jenkinsUrl || !this.authHeader) {
+            return false;
         }
-
-        return { username, password: apiToken };
-    }
-
-    private getJenkinsUrl() {
-        const jenkinsUrl = this.config.get<string>('jenkinsUrl');
-        const jobName = this.config.get<string>('jobName');
-
-        if (!jenkinsUrl || !jobName) {
-            throw new Error('Jenkins URL or job name is not configured');
-        }
-
-        return { jenkinsUrl, jobName };
-    }
-
-    async getBuildStatus(branchName: string): Promise<BuildStatus> {
-        const { jenkinsUrl, jobName } = this.getJenkinsUrl();
-
         try {
-            const response = await axios.get(
-                `${jenkinsUrl}/job/${jobName}/job/${branchName}/lastBuild/api/json`,
-                {
-                    auth: this.getAuthConfig()
-                }
-            );
-
-            return {
-                status: response.data.result,
-                url: response.data.url,
-                timestamp: response.data.timestamp
-            };
+            // Test the connection by fetching a crumb or a lightweight endpoint
+            await this.getCrumb();
+            return true;
         } catch (error) {
-            throw new Error(`Failed to fetch Jenkins build status: ${error instanceof Error ? error.message : String(error)}`);
+            return false;
         }
     }
 
-    async getBuildDetails(branchName: string, buildNumber: number): Promise<BuildDetails> {
-        const { jenkinsUrl, jobName } = this.getJenkinsUrl();
+    /**
+     * Get the build status of a branch.
+     * @param branchName - The branch name for which the build status is required.
+     */
+    async getBuildStatus(branchName: string): Promise<BuildDetails> {
+        const branchBuild = await this.getBranchBuild(branchName);
 
-        try {
-            const response = await axios.get(
-                `${jenkinsUrl}/job/${jobName}/job/${branchName}/${buildNumber}/api/json`,
-                {
-                    auth: this.getAuthConfig()
-                }
-            );
-
-            return {
-                number: response.data.number,
-                status: response.data.result,
-                url: response.data.url,
-                timestamp: response.data.timestamp,
-                duration: response.data.duration,
-                changeSets: response.data.changeSets
-            };
-        } catch (error) {
-            throw new Error(`Failed to fetch build details: ${error instanceof Error ? error.message : String(error)}`);
+        if (!branchBuild) {
+            throw new Error(`No builds found for branch: ${branchName}`);
         }
+
+        return branchBuild;
+    }
+
+    /**
+     * Fetch the Jenkins CSRF crumb required for API requests.
+     */
+    private async getCrumb(): Promise<{ crumb: string; crumbRequestField: string } | null> {
+        if (!this.jenkinsUrl) {
+            throw new Error("Jenkins URL is not configured.");
+        }
+
+        const url = `${this.jenkinsUrl}/crumbIssuer/api/json`;
+
+        const { data, status } = await axios.get(url, {
+            headers: {
+                Authorization: this.authHeader
+            }
+        });
+
+        if (status === 404) {
+            console.log("CSRF protection is disabled or crumb endpoint not found.");
+            return null;
+        }
+
+        if (!data || !data.crumbRequestField || !data.crumb) {
+            throw new Error("Invalid crumb response from Jenkins.");
+        }
+
+        return data;
+    }
+
+    /**
+     * Perform an authenticated API call to Jenkins.
+     * Automatically includes CSRF crumb in the request headers.
+     */
+    private async apiRequest<T>(endpoint: string): Promise<T> {
+        const crumb = await this.getCrumb();
+        const url = `${this.jenkinsUrl}/${endpoint}/api/json`;
+        const headers: AxiosRequestConfig["headers"] = {
+            Authorization: this.authHeader,
+            "Content-Type": "application/json"
+        };
+        if (crumb) {
+            headers[crumb.crumbRequestField] = crumb.crumb;
+        }
+        const { data } = await axios.get<T>(url, { headers });
+        return data;
+    }
+
+    /**
+     * Fetch job information from Jenkins.
+     */
+    private async getJobInfo(): Promise<JobInfo> {
+        this.outputChannel.appendLine(`Fetching JobInfo for ${this.jobName}...`);
+        const jobInfo = await this.apiRequest<JobInfo>(`job/${this.jobName}`);
+        return jobInfo;
+    }
+
+    /**
+     * Fetch details of a specific build by its number.
+     */
+    private async getBuildDetails(buildNumber: number): Promise<BuildDetails> {
+        // Check if cached details are available
+        if (this.cache.buildDetails[buildNumber]) {
+            return this.cache.buildDetails[buildNumber];
+        }
+
+        this.outputChannel.appendLine(`Fetching BuildDetails for ${this.jobName}#${buildNumber}...`);
+        const buildDetails = await this.apiRequest<BuildDetails>(`job/${this.jobName}/${buildNumber}`);
+        // Cache details if status exists (build is over)
+        if (buildDetails.result) this.cache.buildDetails[buildNumber] = buildDetails;
+
+        return buildDetails;
+    }
+
+    /**
+     * Retrieve build details for a specific branch, searching recent builds.
+     * @param branchName - The branch name to search for.
+     * @param maxJobCount - Maximum number of recent builds to search.
+     */
+    private async getBranchBuild(branchName: string, maxJobCount = 5): Promise<BuildDetails | false> {
+        const buildInfo = await this.getJobInfo();
+        const builds = buildInfo.builds || [];
+
+        for (let i = 0; i < Math.min(builds.length, maxJobCount); i++) {
+            const build = builds[i];
+            const buildDetails = await this.getBuildDetails(build.number);
+
+            // Check if the build belongs to the specified branch
+            const lastBuiltRevisionBranches = buildDetails.actions?.find((action) => hasLastBuiltRevision(action))?.lastBuiltRevision.branch;
+
+            if (lastBuiltRevisionBranches?.some((branch: any) => branch?.name?.endsWith(branchName))) {
+                return buildDetails;
+            }
+        }
+
+        return false;
     }
 }
