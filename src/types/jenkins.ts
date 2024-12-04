@@ -53,7 +53,7 @@ export interface BuildDetails {
     keepLog: boolean;
     number: number;
     queueId: number;
-    result: BuildStatus["status"];
+    result: BuildStatus["status"] | null;
     timestamp: number;
     url: string;
 }

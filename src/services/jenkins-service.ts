@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig } from "axios";
 import * as vscode from "vscode";
-import { hasLastBuiltRevision, type BuildDetails, type BuildStatus, type JobInfo } from "../types/jenkins";
+import { hasLastBuiltRevision, type BuildDetails, type JobInfo } from "../types/jenkins";
 
 export class JenkinsService {
     private config: vscode.WorkspaceConfiguration;
@@ -41,18 +41,18 @@ export class JenkinsService {
         }
     }
 
-    /**
-     * Get the build status of a branch.
-     * @param branchName - The branch name for which the build status is required.
-     */
-    async getBuildStatus(branchName: string): Promise<BuildDetails> {
-        const branchBuild = await this.getBranchBuild(branchName);
-
-        if (!branchBuild) {
-            throw new Error(`No builds found for branch: ${branchName}`);
+    async pollForCommitHash(params: { commitHash: string; minPollWaitTime: number; showBuildStatusCommand: string }, retryCount = 5): Promise<void> {
+        const { commitHash, minPollWaitTime, showBuildStatusCommand } = params;
+        const minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
+        const buildDetails = await this.getCommitBuild(commitHash);
+        if (!buildDetails) {
+            if (retryCount > 0) {
+                await minWaitTimePromise;
+                await this.pollForCommitHash(params, --retryCount);
+            }
+            return;
         }
-
-        return branchBuild;
+        vscode.commands.executeCommand(showBuildStatusCommand);
     }
 
     /**
@@ -127,12 +127,7 @@ export class JenkinsService {
         return buildDetails;
     }
 
-    /**
-     * Retrieve build details for a specific branch, searching recent builds.
-     * @param branchName - The branch name to search for.
-     * @param maxJobCount - Maximum number of recent builds to search.
-     */
-    private async getBranchBuild(branchName: string, maxJobCount = 5): Promise<BuildDetails | false> {
+    public async getCommitBuild(commitHash: string, maxJobCount = 5): Promise<BuildDetails | false> {
         const buildInfo = await this.getJobInfo();
         const builds = buildInfo.builds || [];
 
@@ -140,10 +135,10 @@ export class JenkinsService {
             const build = builds[i];
             const buildDetails = await this.getBuildDetails(build.number);
 
-            // Check if the build belongs to the specified branch
-            const lastBuiltRevisionBranches = buildDetails.actions?.find((action) => hasLastBuiltRevision(action))?.lastBuiltRevision.branch;
+            // Check if the build belongs to the specified commit hash
+            const lastBuiltRevisionHash = buildDetails.actions?.find((action) => hasLastBuiltRevision(action))?.lastBuiltRevision.SHA1;
 
-            if (lastBuiltRevisionBranches?.some((branch: any) => branch?.name?.endsWith(branchName))) {
+            if (commitHash === lastBuiltRevisionHash) {
                 return buildDetails;
             }
         }

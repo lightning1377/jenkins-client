@@ -15,7 +15,7 @@ export class StatusBarManager {
      * @param buildDetails details of target build
      * @returns true if build is in progress, false otherwise
      */
-    updateStatus(buildDetails: BuildDetails): boolean {
+    updateStatus(buildDetails: { inProgress: BuildDetails["inProgress"]; building: BuildDetails["building"]; result: BuildDetails["result"] }): boolean {
         const statusIcons = {
             SUCCESS: "$(check)",
             FAILURE: "$(x)",
@@ -24,9 +24,9 @@ export class StatusBarManager {
             IN_PROGRESS: "$(sync~spin)"
         };
 
-        const buildStatus: keyof typeof statusIcons = buildDetails.inProgress || buildDetails.building ? "IN_PROGRESS" : buildDetails.result;
+        const buildStatus: keyof typeof statusIcons | null = buildDetails.inProgress || buildDetails.building ? "IN_PROGRESS" : buildDetails.result;
 
-        const icon = statusIcons[buildStatus] || "$(question)";
+        const icon = buildStatus ? statusIcons[buildStatus] : "$(question)";
         this.statusBarItem.text = `${icon} Jenkins`;
         this.statusBarItem.tooltip = `Build Status: ${buildStatus}\nLast Updated: ${new Date().toLocaleString()}`;
 
