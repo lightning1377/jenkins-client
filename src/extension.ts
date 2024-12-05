@@ -38,6 +38,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         try {
             const minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
             const branchName = await gitService.getCurrentBranch();
+            if (!branchName) {
+                statusBarManager.setStatusToUnknown(false);
+                return;
+            }
             const commitHash = await gitService.getRemoteCommitHash(branchName);
             const buildDetails = await jenkinsService.getCommitBuild(commitHash, branchName);
             if (!buildDetails) {

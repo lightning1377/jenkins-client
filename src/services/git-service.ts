@@ -11,6 +11,7 @@ export class GitService {
     public async getCurrentBranch(): Promise<string> {
         try {
             const result = await this.git.branch();
+            if (result.detached) return "";
             return result.current;
         } catch (error) {
             throw new Error(`Failed to get current git branch: ${error instanceof Error ? error.message : String(error)}`);
@@ -37,6 +38,8 @@ export class GitService {
                 if (!isCheckForPush) return;
 
                 const currentBranch = await this.getCurrentBranch();
+                if (!currentBranch) return;
+
                 const currentRemoteHash = await this.getRemoteCommitHash(currentBranch);
 
                 if (currentLocalHash === currentRemoteHash) {
