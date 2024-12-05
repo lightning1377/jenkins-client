@@ -36,6 +36,10 @@ export class JenkinsService {
         this.outputChannel = outputChannel;
     }
 
+    public getBranchJobName(branchName: string) {
+        return branchName in this.branchSpecificJobs ? this.branchSpecificJobs[branchName] : this.jobName;
+    }
+
     async getIsReady(): Promise<boolean> {
         this.outputChannel.appendLine("Checking if we're connected to Jenkins...");
         if (!this.jenkinsUrl || !this.authHeader || (!this.jobName && Object.keys(this.branchSpecificJobs).length == 0)) {
@@ -86,23 +90,21 @@ export class JenkinsService {
         return buildDetails;
     }
 
-    public async getCommitBuild(commitHash: string, branchName: string): Promise<BuildDetails | false> {
+    public async getCommitBuild(commitHash: string, branchName: string): Promise<BuildDetails | false | "FAILURE"> {
         const jobName = this.getBranchJobName(branchName);
-        const buildInfo = await this.getJobInfo(jobName);
+        const jobInfo = await this.getJobInfo(jobName);
 
-        if (!buildInfo.builds?.length) return false;
+        if (!jobInfo.lastSuccessfulBuild?.number) return false;
 
-        const builds = buildInfo.builds;
+        const lastSuccessfulBuildDetails = await this.getBuildDetails(branchName, jobInfo.lastSuccessfulBuild.number);
 
-        const lastBuildDetails = await this.getBuildDetails(branchName, builds[0].number);
-
-        const buildData = lastBuildDetails.actions?.find((action) => hasLastBuiltRevision(action));
+        const buildData = lastSuccessfulBuildDetails.actions?.find((action) => hasLastBuiltRevision(action));
 
         if (!buildData) return false;
 
         const { lastBuiltRevision, buildsByBranchName } = buildData;
 
-        if (commitHash === lastBuiltRevision.SHA1) return lastBuildDetails;
+        if (commitHash === lastBuiltRevision.SHA1) return lastSuccessfulBuildDetails;
 
         const targetBranchName = Object.keys(buildsByBranchName).find((_branchName) => _branchName.endsWith(branchName));
 
@@ -112,7 +114,7 @@ export class JenkinsService {
             return await this.getBuildDetails(branchName, buildsByBranchName[targetBranchName].buildNumber);
         }
 
-        return false;
+        return "FAILURE";
     }
 
     /**
@@ -172,9 +174,5 @@ export class JenkinsService {
         const jobInfo = await this.apiRequest<JobInfo>(`job/${jobName}`);
         this.cache.jobInfo[jobName] = jobInfo;
         return jobInfo;
-    }
-
-    private getBranchJobName(branchName: string) {
-        return branchName in this.branchSpecificJobs ? this.branchSpecificJobs[branchName] : this.jobName;
     }
 }

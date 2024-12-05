@@ -41,14 +41,6 @@ export class StatusBarManager {
             this.statusBarItem.tooltip += `\nDuration: ${(buildDetails.duration / 1000).toFixed(1)}s`;
         }
 
-        if (buildStatus === "SUCCESS") {
-            this.statusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.successBackground");
-        } else if (buildStatus === "FAILURE") {
-            this.statusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.errorBackground");
-        } else {
-            this.statusBarItem.backgroundColor = undefined;
-        }
-
         return isInProgress;
     }
 

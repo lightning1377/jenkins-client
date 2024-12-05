@@ -48,6 +48,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 return;
             }
 
+            if (buildDetails == "FAILURE") {
+                statusBarManager.updateStatus({ result: "FAILURE", fullDisplayName: jenkinsService.getBranchJobName(branchName), inProgress: false });
+                return;
+            }
+
             const isInProgress = statusBarManager.updateStatus(buildDetails);
 
             if (isInProgress) {
