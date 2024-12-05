@@ -8,7 +8,13 @@ export class JenkinsService {
     private jenkinsUrl?: string;
     private jobName: string;
     private branchSpecificJobs: Record<string, string>;
-    private cache: { buildDetails: Record<string, Record<number, BuildDetails>> } = { buildDetails: {} }; // First key is job name, second key is build number
+    private cache: {
+        jobInfo: Record<string, JobInfo>;
+        buildDetails: Record<string, Record<number, BuildDetails>>;
+    } = {
+        jobInfo: {},
+        buildDetails: {}
+    }; // First key is job name, second key is build number
     private outputChannel: vscode.OutputChannel;
     private isCsrfEnabled = true;
 
@@ -140,9 +146,9 @@ export class JenkinsService {
      * Perform an authenticated API call to Jenkins.
      * Automatically includes CSRF crumb in the request headers.
      */
-    private async apiRequest<T>(endpoint: string): Promise<T> {
+    private async apiRequest<T>(endpoint: string, tree?: string): Promise<T> {
         const crumb = await this.getCrumb();
-        const url = `${this.jenkinsUrl}/${endpoint}/api/json`;
+        const url = `${this.jenkinsUrl}/${endpoint}/api/json` + (tree ? `?tree=${tree}` : "");
         const headers: AxiosRequestConfig["headers"] = {
             Authorization: this.authHeader,
             "Content-Type": "application/json"
@@ -158,8 +164,13 @@ export class JenkinsService {
      * Fetch job information from Jenkins.
      */
     private async getJobInfo(jobName: string): Promise<JobInfo> {
+        const lastBuildNumber = (await this.apiRequest<{ lastBuild: { number: number } }>(`job/${jobName}`, "lastBuild[number]"))?.lastBuild.number;
+        if (this.cache.jobInfo[jobName] && lastBuildNumber === this.cache.jobInfo[jobName].lastBuild.number) {
+            return this.cache.jobInfo[jobName];
+        }
         this.outputChannel.appendLine(`Fetching JobInfo for ${jobName}...`);
         const jobInfo = await this.apiRequest<JobInfo>(`job/${jobName}`);
+        this.cache.jobInfo[jobName] = jobInfo;
         return jobInfo;
     }
 

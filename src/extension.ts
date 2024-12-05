@@ -36,7 +36,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const disposable = vscode.commands.registerCommand(showBuildStatusCommand, async () => {
         try {
-            const minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
             const branchName = await gitService.getCurrentBranch();
             if (!branchName) {
                 statusBarManager.setStatusToUnknown(false);
@@ -52,12 +51,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             const isInProgress = statusBarManager.updateStatus(buildDetails);
 
             if (isInProgress) {
+                let minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
                 let pollCounter = maxPollCount;
                 let _isInProgress = true;
                 let _buildDetails = buildDetails;
                 while (_isInProgress && pollCounter > 0) {
                     pollCounter--;
                     await minWaitTimePromise;
+                    minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
                     _buildDetails = await jenkinsService.getBuildDetails(branchName, _buildDetails.number);
                     _isInProgress = statusBarManager.updateStatus(_buildDetails);
                 }

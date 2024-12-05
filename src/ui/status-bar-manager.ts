@@ -12,7 +12,7 @@ export class StatusBarManager {
     }
 
     public setStatusToUnknown(inProgress: boolean) {
-        this.updateStatus({ result: null, inProgress: inProgress, building: false });
+        this.updateStatus({ result: null, inProgress: inProgress, isChecking: inProgress });
     }
 
     /**
@@ -20,7 +20,7 @@ export class StatusBarManager {
      * @param buildDetails details of target build
      * @returns true if build is in progress, false otherwise
      */
-    updateStatus(buildDetails: Partial<BuildDetails> & { inProgress: BuildDetails["inProgress"]; result: BuildDetails["result"] }): boolean {
+    public updateStatus(buildDetails: Partial<BuildDetails> & { inProgress: BuildDetails["inProgress"]; result: BuildDetails["result"]; isChecking?: boolean }): boolean {
         const statusIcons = {
             SUCCESS: "$(check)",
             FAILURE: "$(x)",
@@ -34,7 +34,7 @@ export class StatusBarManager {
 
         const icon = buildStatus ? statusIcons[buildStatus] : "$(question)";
         this.statusBarItem.text = `${icon} Jenkins`;
-        this.statusBarItem.tooltip = `Job Name: ${buildDetails.fullDisplayName?.split(" ")[0] ?? "?"}\nBuild Number: ${buildDetails.number ?? "?"}\nBuild Status: ${buildStatus ?? "?"}\nLast Updated: ${new Date().toLocaleString()}`;
+        this.statusBarItem.tooltip = `Job Name: ${buildDetails.fullDisplayName?.split(" ")[0] ?? "?"}\nBuild Number: ${buildDetails.number ?? "?"}\nBuild Status: ${buildDetails.isChecking ? "Checking..." : buildStatus ?? "?"}\nLast Updated: ${new Date().toLocaleString()}`;
         if (isInProgress && buildDetails.estimatedDuration) {
             this.statusBarItem.tooltip += `\nEstimated Duration: ${(buildDetails.estimatedDuration / 1000).toFixed(1)}s`;
         } else if (!isInProgress && buildDetails.duration) {
