@@ -5,6 +5,7 @@
   "publisher": "Siavash",
   "description": "Show Jenkins build results for current git branch",
   "version": "0.1.0",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.80.0"
   },
