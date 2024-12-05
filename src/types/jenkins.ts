@@ -1,12 +1,48 @@
 export interface JobInfo {
+    actions: any[];
+    buildable: boolean;
     builds: BuildStatus[];
+    color: string;
+    concurrentBuild: boolean;
+    description: string;
+    disabled: boolean;
+    displayName: string;
+    downstreamProjects: any[];
+    firstBuild: BuildStatus;
+    fullDisplayName: string;
+    fullName: string;
+    healthReport: {
+        description: string;
+        iconClassName: string;
+        iconUrl: string;
+        score: number;
+    }[];
+    inQueue: boolean;
+    keepDependencies: boolean;
+    lastBuild: BuildStatus;
+    lastCompletedBuild: BuildStatus;
+    lastFailedBuild: BuildStatus;
+    lastStableBuild: BuildStatus;
+    lastSuccessfulBuild: BuildStatus;
+    lastUnstableBuild: BuildStatus;
+    lastUnsuccessfulBuild: BuildStatus;
+    name: string;
+    nextBuildNumber: number;
+    property: any[];
+    queueItem: any;
+    scm: any;
+    upstreamProjects: any[];
+    url: string;
 }
 
 export interface BuildStatus {
     number: number;
-    status: "SUCCESS" | "FAILURE" | "UNSTABLE" | "ABORTED";
     url: string;
-    timestamp: number;
+}
+
+interface Revision {
+    branch: { SHA1: string; name: string }[];
+    SHA1: string;
 }
 
 type Action =
@@ -17,8 +53,8 @@ type Action =
           parameters: any[];
       }
     | {
-          buildsByBranchName: Record<string, { buildNumber: number; buildResult: string | null }>;
-          lastBuiltRevision: { branch: { SHA1: string; name: string }[]; SHA1: string };
+          buildsByBranchName: Record<string, { buildNumber: number; buildResult: string | null; marked: Revision; revision: Revision }>;
+          lastBuiltRevision: Revision;
           remoteUrls: string[];
       };
 
@@ -53,7 +89,7 @@ export interface BuildDetails {
     keepLog: boolean;
     number: number;
     queueId: number;
-    result: BuildStatus["status"] | null;
+    result: "SUCCESS" | "FAILURE" | "UNSTABLE" | "ABORTED" | null;
     timestamp: number;
     url: string;
 }

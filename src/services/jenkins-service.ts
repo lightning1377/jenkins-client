@@ -6,9 +6,11 @@ export class JenkinsService {
     private config: vscode.WorkspaceConfiguration;
     private authHeader: string;
     private jenkinsUrl?: string;
-    private jobName?: string;
-    private cache: { buildDetails: Record<number, BuildDetails> } = { buildDetails: {} };
+    private jobName: string;
+    private branchSpecificJobs: Record<string, string>;
+    private cache: { buildDetails: Record<string, Record<number, BuildDetails>> } = { buildDetails: {} }; // First key is job name, second key is build number
     private outputChannel: vscode.OutputChannel;
+    private isCsrfEnabled = true;
 
     constructor(outputChannel: vscode.OutputChannel) {
         // Load Jenkins configuration from workspace settings
@@ -18,7 +20,8 @@ export class JenkinsService {
         this.jenkinsUrl = this.config.get<string>("jenkinsUrl");
         const username = this.config.get<string>("username");
         const apiToken = this.config.get<string>("apiToken");
-        this.jobName = this.config.get<string>("jobName");
+        this.jobName = this.config.get<string>("jobName") ?? "";
+        this.branchSpecificJobs = this.config.get<Record<string, string>>("branchSpecificJobs") ?? {};
 
         // Prepare the Basic Authentication header
         const credentials = `${username}:${apiToken}`;
@@ -29,7 +32,7 @@ export class JenkinsService {
 
     async getIsReady(): Promise<boolean> {
         this.outputChannel.appendLine("Checking if we're connected to Jenkins...");
-        if (!this.jenkinsUrl || !this.authHeader) {
+        if (!this.jenkinsUrl || !this.authHeader || (!this.jobName && Object.keys(this.branchSpecificJobs).length == 0)) {
             return false;
         }
         try {
@@ -41,10 +44,10 @@ export class JenkinsService {
         }
     }
 
-    async pollForCommitHash(params: { commitHash: string; minPollWaitTime: number; showBuildStatusCommand: string }, retryCount = 5): Promise<void> {
-        const { commitHash, minPollWaitTime, showBuildStatusCommand } = params;
+    async pollForCommitHash(params: { commitHash: string; branchName: string; minPollWaitTime: number; showBuildStatusCommand: string }, retryCount = 5): Promise<void> {
+        const { commitHash, branchName, minPollWaitTime, showBuildStatusCommand } = params;
         const minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
-        const buildDetails = await this.getCommitBuild(commitHash);
+        const buildDetails = await this.getCommitBuild(commitHash, branchName);
         if (!buildDetails) {
             if (retryCount > 0) {
                 await minWaitTimePromise;
@@ -56,12 +59,61 @@ export class JenkinsService {
     }
 
     /**
+     * Fetch details of a specific build by its number.
+     */
+    public async getBuildDetails(branchName: string, buildNumber: number): Promise<BuildDetails> {
+        const jobName = this.getBranchJobName(branchName);
+
+        // Check if cached details are available
+        if (this.cache.buildDetails[jobName]?.[buildNumber]) {
+            return this.cache.buildDetails[jobName][buildNumber];
+        }
+
+        this.outputChannel.appendLine(`Fetching BuildDetails for ${jobName}#${buildNumber}...`);
+        const buildDetails = await this.apiRequest<BuildDetails>(`job/${jobName}/${buildNumber}`);
+        // Cache details if status exists (build is over)
+        if (buildDetails.result) {
+            if (!this.cache.buildDetails[jobName]) this.cache.buildDetails[jobName] = {};
+            this.cache.buildDetails[jobName][buildNumber] = buildDetails;
+        }
+
+        return buildDetails;
+    }
+
+    public async getCommitBuild(commitHash: string, branchName: string): Promise<BuildDetails | false> {
+        const jobName = this.getBranchJobName(branchName);
+        const buildInfo = await this.getJobInfo(jobName);
+
+        if (!buildInfo.builds?.length) return false;
+
+        const builds = buildInfo.builds;
+
+        const lastBuildDetails = await this.getBuildDetails(branchName, builds[0].number);
+
+        const buildData = lastBuildDetails.actions?.find((action) => hasLastBuiltRevision(action));
+
+        if (!buildData) return false;
+
+        const { lastBuiltRevision, buildsByBranchName } = buildData;
+
+        if (commitHash === lastBuiltRevision.SHA1) return lastBuildDetails;
+
+        const targetBranchName = Object.keys(buildsByBranchName).find((_branchName) => _branchName.endsWith(branchName));
+
+        if (!targetBranchName) return false;
+
+        if (buildsByBranchName[targetBranchName].revision.SHA1 === commitHash) {
+            return await this.getBuildDetails(branchName, buildsByBranchName[targetBranchName].buildNumber);
+        }
+
+        return false;
+    }
+
+    /**
      * Fetch the Jenkins CSRF crumb required for API requests.
      */
     private async getCrumb(): Promise<{ crumb: string; crumbRequestField: string } | null> {
-        if (!this.jenkinsUrl) {
-            throw new Error("Jenkins URL is not configured.");
-        }
+        if (!this.isCsrfEnabled) return null;
 
         const url = `${this.jenkinsUrl}/crumbIssuer/api/json`;
 
@@ -72,7 +124,8 @@ export class JenkinsService {
         });
 
         if (status === 404) {
-            console.log("CSRF protection is disabled or crumb endpoint not found.");
+            this.outputChannel.appendLine("[JenkinsService] CSRF protection is disabled or crumb endpoint not found.");
+            this.isCsrfEnabled = false;
             return null;
         }
 
@@ -104,45 +157,13 @@ export class JenkinsService {
     /**
      * Fetch job information from Jenkins.
      */
-    private async getJobInfo(): Promise<JobInfo> {
-        this.outputChannel.appendLine(`Fetching JobInfo for ${this.jobName}...`);
-        const jobInfo = await this.apiRequest<JobInfo>(`job/${this.jobName}`);
+    private async getJobInfo(jobName: string): Promise<JobInfo> {
+        this.outputChannel.appendLine(`Fetching JobInfo for ${jobName}...`);
+        const jobInfo = await this.apiRequest<JobInfo>(`job/${jobName}`);
         return jobInfo;
     }
 
-    /**
-     * Fetch details of a specific build by its number.
-     */
-    private async getBuildDetails(buildNumber: number): Promise<BuildDetails> {
-        // Check if cached details are available
-        if (this.cache.buildDetails[buildNumber]) {
-            return this.cache.buildDetails[buildNumber];
-        }
-
-        this.outputChannel.appendLine(`Fetching BuildDetails for ${this.jobName}#${buildNumber}...`);
-        const buildDetails = await this.apiRequest<BuildDetails>(`job/${this.jobName}/${buildNumber}`);
-        // Cache details if status exists (build is over)
-        if (buildDetails.result) this.cache.buildDetails[buildNumber] = buildDetails;
-
-        return buildDetails;
-    }
-
-    public async getCommitBuild(commitHash: string, maxJobCount = 5): Promise<BuildDetails | false> {
-        const buildInfo = await this.getJobInfo();
-        const builds = buildInfo.builds || [];
-
-        for (let i = 0; i < Math.min(builds.length, maxJobCount); i++) {
-            const build = builds[i];
-            const buildDetails = await this.getBuildDetails(build.number);
-
-            // Check if the build belongs to the specified commit hash
-            const lastBuiltRevisionHash = buildDetails.actions?.find((action) => hasLastBuiltRevision(action))?.lastBuiltRevision.SHA1;
-
-            if (commitHash === lastBuiltRevisionHash) {
-                return buildDetails;
-            }
-        }
-
-        return false;
+    private getBranchJobName(branchName: string) {
+        return branchName in this.branchSpecificJobs ? this.branchSpecificJobs[branchName] : this.jobName;
     }
 }

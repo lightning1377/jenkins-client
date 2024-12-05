@@ -4,25 +4,28 @@ This extension integrates Jenkins build results into VS Code, showing the build 
 
 ## Features
 
-- Shows Jenkins build status in the VS Code status bar
-- Updates build status automatically
-- Supports different build states (success, failure, unstable, etc.)
-- Configurable Jenkins server settings
+-   Shows Jenkins build status in the VS Code status bar
+-   Updates build status automatically
+-   Supports different build states (success, failure, unstable, etc.)
+-   Configurable Jenkins server settings
 
 ## Requirements
 
-- VS Code 1.80.0 or higher
-- Access to a Jenkins server
-- Git repository
+-   VS Code 1.80.0 or higher
+-   Access to a Jenkins server
+-   Git repository
 
 ## Extension Settings
 
 This extension contributes the following settings:
 
-* `jenkinsBuildStatus.jenkinsUrl`: Jenkins server URL
-* `jenkinsBuildStatus.username`: Jenkins username
-* `jenkinsBuildStatus.apiToken`: Jenkins API token
-* `jenkinsBuildStatus.jobName`: Jenkins job name
+-   `jenkinsBuildStatus.jenkinsUrl`: Jenkins server URL
+-   `jenkinsBuildStatus.username`: Jenkins username
+-   `jenkinsBuildStatus.apiToken`: Jenkins API token
+-   `jenkinsBuildStatus.jobName`: Jenkins job name
+-   `jenkinsBuildStatus.branchSpecificJobs`: Branch specific jobs
+-   `jenkinsBuildStatus.minPollWaitTime`: Minimum amount of time to wait between polls
+-   `jenkinsBuildStatus.maxPollCount`: Maximum number of times to poll
 
 ## Usage
 
@@ -33,7 +36,7 @@ This extension contributes the following settings:
 
 ## Known Issues
 
-- None currently reported
+-   None currently reported
 
 ## Release Notes
 

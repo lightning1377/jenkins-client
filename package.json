@@ -45,6 +45,11 @@
           "default": "",
           "description": "Jenkins job name"
         },
+        "jenkinsBuildStatus.branchSpecificJobs": {
+          "type": "object",
+          "default": {},
+          "description": "Branch Specific Jobs (In case some branches are built using a job name other than the one specified in jobName field)"
+        },
         "jenkinsBuildStatus.minPollWaitTime": {
           "type": "integer",
           "default": 5,

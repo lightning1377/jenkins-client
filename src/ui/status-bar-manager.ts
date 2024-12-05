@@ -7,7 +7,12 @@ export class StatusBarManager {
     constructor(command: string) {
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
         this.statusBarItem.command = command;
+        this.setStatusToUnknown(true);
         this.statusBarItem.show();
+    }
+
+    public setStatusToUnknown(inProgress: boolean) {
+        this.updateStatus({ result: null, inProgress: inProgress, building: false });
     }
 
     /**
@@ -15,7 +20,7 @@ export class StatusBarManager {
      * @param buildDetails details of target build
      * @returns true if build is in progress, false otherwise
      */
-    updateStatus(buildDetails: { inProgress: BuildDetails["inProgress"]; building: BuildDetails["building"]; result: BuildDetails["result"] }): boolean {
+    updateStatus(buildDetails: Partial<BuildDetails> & { inProgress: BuildDetails["inProgress"]; result: BuildDetails["result"] }): boolean {
         const statusIcons = {
             SUCCESS: "$(check)",
             FAILURE: "$(x)",
@@ -25,10 +30,16 @@ export class StatusBarManager {
         };
 
         const buildStatus: keyof typeof statusIcons | null = buildDetails.inProgress || buildDetails.building ? "IN_PROGRESS" : buildDetails.result;
+        const isInProgress = buildStatus == "IN_PROGRESS";
 
         const icon = buildStatus ? statusIcons[buildStatus] : "$(question)";
         this.statusBarItem.text = `${icon} Jenkins`;
-        this.statusBarItem.tooltip = `Build Status: ${buildStatus}\nLast Updated: ${new Date().toLocaleString()}`;
+        this.statusBarItem.tooltip = `Job Name: ${buildDetails.fullDisplayName?.split(" ")[0] ?? "?"}\nBuild Number: ${buildDetails.number ?? "?"}\nBuild Status: ${buildStatus ?? "?"}\nLast Updated: ${new Date().toLocaleString()}`;
+        if (isInProgress && buildDetails.estimatedDuration) {
+            this.statusBarItem.tooltip += `\nEstimated Duration: ${(buildDetails.estimatedDuration / 1000).toFixed(1)}s`;
+        } else if (!isInProgress && buildDetails.duration) {
+            this.statusBarItem.tooltip += `\nDuration: ${(buildDetails.duration / 1000).toFixed(1)}s`;
+        }
 
         if (buildStatus === "SUCCESS") {
             this.statusBarItem.backgroundColor = new vscode.ThemeColor("statusBarItem.successBackground");
@@ -38,7 +49,7 @@ export class StatusBarManager {
             this.statusBarItem.backgroundColor = undefined;
         }
 
-        return buildStatus == "IN_PROGRESS";
+        return isInProgress;
     }
 
     dispose(): void {

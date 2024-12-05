@@ -24,7 +24,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     outputChannel.appendLine("Jenkins Connection Established.");
 
     // Initialize git service
-    const gitService = new GitService();
+    const gitService = new GitService(outputChannel);
 
     // Initialize status bar manager
     statusBarManager = new StatusBarManager(showBuildStatusCommand);
@@ -34,32 +34,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const minPollWaitTime = config.get<number>("minPollWaitTime") ?? 5;
     const maxPollCount = config.get<number>("maxPollCount") ?? 60;
 
-    let pollCounter = maxPollCount;
-
     const disposable = vscode.commands.registerCommand(showBuildStatusCommand, async () => {
         try {
             const minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
-            const commitHash = await gitService.getRemoteCommitHash();
-            const buildDetails = await jenkinsService.getCommitBuild(commitHash);
+            const branchName = await gitService.getCurrentBranch();
+            const commitHash = await gitService.getRemoteCommitHash(branchName);
+            const buildDetails = await jenkinsService.getCommitBuild(commitHash, branchName);
             if (!buildDetails) {
-                statusBarManager.updateStatus({ result: null, inProgress: false, building: false });
+                statusBarManager.setStatusToUnknown(false);
                 return;
             }
+
             const isInProgress = statusBarManager.updateStatus(buildDetails);
+
             if (isInProgress) {
-                if (pollCounter > 0) {
+                let pollCounter = maxPollCount;
+                let _isInProgress = true;
+                let _buildDetails = buildDetails;
+                while (_isInProgress && pollCounter > 0) {
                     pollCounter--;
                     await minWaitTimePromise;
-                    vscode.commands.executeCommand(showBuildStatusCommand);
-                } else {
-                    pollCounter = maxPollCount;
-                    // Update status to unknown
-                    statusBarManager.updateStatus({ ...buildDetails, inProgress: false, building: false });
+                    _buildDetails = await jenkinsService.getBuildDetails(branchName, _buildDetails.number);
+                    _isInProgress = statusBarManager.updateStatus(_buildDetails);
                 }
-            } else {
-                pollCounter = maxPollCount;
             }
         } catch (error) {
+            statusBarManager.setStatusToUnknown(false);
             outputChannel.appendLine(`Error: ${error instanceof Error ? error.message : String(error)}`);
         }
     });
@@ -70,9 +70,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     vscode.commands.executeCommand(showBuildStatusCommand);
 
     pollingInterval = await gitService.startPollingForPushEvent({
-        onPush: async (commitHash) => {
-            statusBarManager.updateStatus({ result: null, inProgress: false, building: false });
-            await jenkinsService.pollForCommitHash({ commitHash, minPollWaitTime, showBuildStatusCommand });
+        onPush: async (commitHash, branchName) => {
+            statusBarManager.setStatusToUnknown(true);
+            await jenkinsService.pollForCommitHash({ commitHash, branchName, minPollWaitTime, showBuildStatusCommand });
         }
     });
 }
