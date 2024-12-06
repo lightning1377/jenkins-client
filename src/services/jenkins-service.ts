@@ -58,7 +58,7 @@ export class JenkinsService {
         const { commitHash, branchName, minPollWaitTime, showBuildStatusCommand } = params;
         const minWaitTimePromise = new Promise((resolve) => setTimeout(resolve, minPollWaitTime * 1000));
         const buildDetails = await this.getCommitBuild(commitHash, branchName);
-        if (!buildDetails) {
+        if (!buildDetails || buildDetails == "FAILURE") {
             if (retryCount > 0) {
                 await minWaitTimePromise;
                 await this.pollForCommitHash(params, --retryCount);
@@ -112,6 +112,14 @@ export class JenkinsService {
 
         if (buildsByBranchName[targetBranchName].revision.SHA1 === commitHash) {
             return await this.getBuildDetails(branchName, buildsByBranchName[targetBranchName].buildNumber);
+        }
+
+        if (jobInfo.lastBuild.number > buildsByBranchName[targetBranchName].buildNumber) {
+            const startBuildNumber = Math.max(buildsByBranchName[targetBranchName].buildNumber + 1, jobInfo.lastBuild.number - 4); // Fetch build details for up to 5 builds before last build and after last successful build of branch based on job info
+            for (let buildNumber = startBuildNumber; buildNumber <= jobInfo.lastBuild.number; buildNumber++) {
+                const _buildDetails = await this.getBuildDetails(branchName, buildNumber);
+                if (_buildDetails.actions?.find((action) => hasLastBuiltRevision(action))?.lastBuiltRevision?.SHA1 === commitHash) return _buildDetails;
+            }
         }
 
         return "FAILURE";
