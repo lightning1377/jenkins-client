@@ -1,4 +1,3 @@
-import axios, { AxiosRequestConfig } from "axios";
 import * as vscode from "vscode";
 import { hasLastBuiltRevision, type BuildDetails, type JobInfo } from "../types/jenkins";
 
@@ -81,6 +80,7 @@ export class JenkinsService {
 
         this.outputChannel.appendLine(`Fetching BuildDetails for ${jobName}#${buildNumber}...`);
         const buildDetails = await this.apiRequest<BuildDetails>(`job/${jobName}/${buildNumber}`);
+
         // Cache details if status exists (build is over)
         if (buildDetails.result) {
             if (!this.cache.buildDetails[jobName]) this.cache.buildDetails[jobName] = {};
@@ -132,19 +132,21 @@ export class JenkinsService {
         if (!this.isCsrfEnabled) return null;
 
         const url = `${this.jenkinsUrl}/crumbIssuer/api/json`;
-
-        const { data, status } = await axios.get(url, {
-            headers: {
-                Authorization: this.authHeader
-            }
+        const response = await fetch(url, {
+            headers: { Authorization: this.authHeader }
         });
 
-        if (status === 404) {
+        if (response.status === 404) {
             this.outputChannel.appendLine("[JenkinsService] CSRF protection is disabled or crumb endpoint not found.");
             this.isCsrfEnabled = false;
             return null;
         }
 
+        if (!response.ok) {
+            throw new Error(`Failed to fetch crumb: ${response.statusText}`);
+        }
+
+        const data = (await response.json()) as { crumb: string; crumbRequestField: string } | null;
         if (!data || !data.crumbRequestField || !data.crumb) {
             throw new Error("Invalid crumb response from Jenkins.");
         }
@@ -159,15 +161,21 @@ export class JenkinsService {
     private async apiRequest<T>(endpoint: string, tree?: string): Promise<T> {
         const crumb = await this.getCrumb();
         const url = `${this.jenkinsUrl}/${endpoint}/api/json` + (tree ? `?tree=${tree}` : "");
-        const headers: AxiosRequestConfig["headers"] = {
+        const headers: RequestInit["headers"] = {
             Authorization: this.authHeader,
             "Content-Type": "application/json"
         };
+
         if (crumb) {
             headers[crumb.crumbRequestField] = crumb.crumb;
         }
-        const { data } = await axios.get<T>(url, { headers });
-        return data;
+
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+            throw new Error(`Request failed: ${response.statusText}`);
+        }
+
+        return response.json() as T;
     }
 
     /**
@@ -175,9 +183,11 @@ export class JenkinsService {
      */
     private async getJobInfo(jobName: string): Promise<JobInfo> {
         const lastBuildNumber = (await this.apiRequest<{ lastBuild: { number: number } }>(`job/${jobName}`, "lastBuild[number]"))?.lastBuild.number;
+
         if (this.cache.jobInfo[jobName] && lastBuildNumber === this.cache.jobInfo[jobName].lastBuild.number) {
             return this.cache.jobInfo[jobName];
         }
+
         this.outputChannel.appendLine(`Fetching JobInfo for ${jobName}...`);
         const jobInfo = await this.apiRequest<JobInfo>(`job/${jobName}`);
         this.cache.jobInfo[jobName] = jobInfo;
