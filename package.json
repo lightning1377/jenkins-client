@@ -10,6 +10,7 @@
     "vscode": "^1.80.0"
   },
   "categories": [
+    "SCM Providers",
     "Other"
   ],
   "main": "./out/extension.js",
@@ -20,7 +21,9 @@
     "commands": [
       {
         "command": "jenkins-build-status.showBuildStatus",
-        "title": "Show Jenkins Build Status"
+        "title": "Show Jenkins Build Status",
+        "category": "Jenkins",
+        "icon": "$(git-fetch)"
       }
     ],
     "configuration": {
