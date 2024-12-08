@@ -91,6 +91,7 @@ export class JenkinsService {
     }
 
     public async getCommitBuild(commitHash: string, branchName: string): Promise<BuildDetails | false | "FAILURE"> {
+        // Get branch related job info
         const jobName = this.getBranchJobName(branchName);
         const jobInfo = await this.getJobInfo(jobName);
 

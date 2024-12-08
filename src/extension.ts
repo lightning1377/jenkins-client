@@ -38,12 +38,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const config = vscode.workspace.getConfiguration("jenkinsBuildStatus");
     const minPollWaitTime = config.get<number>("minPollWaitTime") ?? 5;
     const maxPollCount = config.get<number>("maxPollCount") ?? 60;
+    const excludeBranches = config.get<string[]>("excludeBranches") ?? [];
 
     // Register show build status command
     const showBuildStatusDisposable = vscode.commands.registerCommand(showBuildStatusCommand, async () => {
         try {
             const branchName = await gitService.getCurrentBranch();
-            if (!branchName) {
+            if (!branchName || excludeBranches.includes(branchName)) {
                 statusBarManager.setStatusToUnknown(false);
                 return;
             }
@@ -100,6 +101,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     pollingInterval = await gitService.startPollingForPushEvent({
         onPush: async (commitHash, branchName) => {
+            if (excludeBranches.includes(branchName)) {
+                statusBarManager.setStatusToUnknown(false);
+                return;
+            }
             statusBarManager.setStatusToUnknown(true);
             await jenkinsService.pollForCommitHash({ commitHash, branchName, minPollWaitTime, showBuildStatusCommand });
         }

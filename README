@@ -16,25 +16,13 @@ This extension integrates Jenkins build results into VS Code, showing the build 
     -   FreeStyle Builds
     -   Jenkins Git Plugin
 
-    If it's not working for you, feel free to raise a PR to add support for your own jenkins configuration
+    If it's not working for you, feel free to fork and update based on your requirements, or raise a PR to add support for your own jenkins configuration.
 
 ## Requirements
 
 -   VS Code 1.80.0 or higher
 -   Access to a Jenkins server
 -   Git repository
-
-## Extension Settings
-
-This extension contributes the following settings:
-
--   `jenkinsBuildStatus.jenkinsUrl`: Jenkins server URL
--   `jenkinsBuildStatus.username`: Jenkins username
--   `jenkinsBuildStatus.apiToken`: Jenkins API token
--   `jenkinsBuildStatus.jobName`: Jenkins job name
--   `jenkinsBuildStatus.branchSpecificJobs`: Branch specific jobs
--   `jenkinsBuildStatus.minPollWaitTime`: Minimum amount of time to wait between polls
--   `jenkinsBuildStatus.maxPollCount`: Maximum number of times to poll
 
 ## Usage
 

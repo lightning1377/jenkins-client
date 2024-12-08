@@ -53,12 +53,12 @@
         "jenkinsBuildStatus.apiToken": {
           "type": "string",
           "default": "",
-          "description": "Jenkins API token"
+          "description": "Jenkins API token or password"
         },
         "jenkinsBuildStatus.jobName": {
           "type": "string",
           "default": "",
-          "description": "Jenkins job name"
+          "description": "Jenkins Job Name (Branches not specified in branchSpecificJobs are expected to be built by this job)"
         },
         "jenkinsBuildStatus.branchSpecificJobs": {
           "type": "object",
@@ -74,6 +74,11 @@
           "type": "integer",
           "default": 60,
           "description": "Maximum number of times to fetch build details when build is in progress"
+        },
+        "jenkinsBuildStatus.excludeBranches": {
+          "type": "array",
+          "default": [],
+          "description": "Specify branches which are not built by any job"
         }
       }
     }
