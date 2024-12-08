@@ -4,9 +4,9 @@ import type { BuildDetails } from "../types/jenkins";
 export class StatusBarManager {
     public readonly statusBarItem: vscode.StatusBarItem;
 
-    constructor(command: string) {
+    constructor(openQuickPickCommand: string, private quickPickCommands: { title: string; command: string }[]) {
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-        this.statusBarItem.command = command;
+        this.statusBarItem.command = openQuickPickCommand;
         this.setStatusToUnknown(true);
         this.statusBarItem.show();
     }
@@ -42,6 +42,28 @@ export class StatusBarManager {
         }
 
         return isInProgress;
+    }
+
+    /**
+     * Shows quick pick menu and returns selected command
+     */
+    public async showQuickPickMenu(): Promise<string> {
+        const selection = await vscode.window.showQuickPick(
+            this.quickPickCommands.map((cmd) => cmd.title),
+            {
+                placeHolder: "Select an action"
+            }
+        );
+
+        if (selection) {
+            const selectedCommand = this.quickPickCommands.find((cmd) => cmd.title === selection);
+
+            if (selectedCommand) {
+                return selectedCommand.command;
+            }
+        }
+
+        return "";
     }
 
     dispose(): void {

@@ -114,15 +114,24 @@ export class JenkinsService {
             return await this.getBuildDetails(branchName, buildsByBranchName[targetBranchName].buildNumber);
         }
 
+        // Try to find commit build in ongoing jobs
         if (jobInfo.lastBuild.number > buildsByBranchName[targetBranchName].buildNumber) {
             const startBuildNumber = Math.max(buildsByBranchName[targetBranchName].buildNumber + 1, jobInfo.lastBuild.number - 4); // Fetch build details for up to 5 builds before last build and after last successful build of branch based on job info
-            for (let buildNumber = startBuildNumber; buildNumber <= jobInfo.lastBuild.number; buildNumber++) {
+            for (let buildNumber = jobInfo.lastBuild.number; buildNumber >= startBuildNumber; buildNumber--) {
                 const _buildDetails = await this.getBuildDetails(branchName, buildNumber);
                 if (_buildDetails.actions?.find((action) => hasLastBuiltRevision(action))?.lastBuiltRevision?.SHA1 === commitHash) return _buildDetails;
+                if (_buildDetails.result) break;
             }
         }
 
         return "FAILURE";
+    }
+
+    /**
+     * Clears cache of this service
+     */
+    public clearCache() {
+        this.cache = { jobInfo: {}, buildDetails: {} };
     }
 
     /**
@@ -180,11 +189,18 @@ export class JenkinsService {
 
     /**
      * Fetch job information from Jenkins.
+     * Reads from cache if both last build number and last successful build number are unchanged
      */
     private async getJobInfo(jobName: string): Promise<JobInfo> {
-        const lastBuildNumber = (await this.apiRequest<{ lastBuild: { number: number } }>(`job/${jobName}`, "lastBuild[number]"))?.lastBuild.number;
+        const buildInfo = await this.apiRequest<{
+            lastBuild: { number: number };
+            lastSuccessfulBuild: { number: number };
+        }>(`job/${jobName}`, "lastBuild[number],lastSuccessfulBuild[number]");
 
-        if (this.cache.jobInfo[jobName] && lastBuildNumber === this.cache.jobInfo[jobName].lastBuild.number) {
+        const lastBuildNumber = buildInfo?.lastBuild.number;
+        const lastSuccessfulBuildNumber = buildInfo?.lastSuccessfulBuild.number;
+
+        if (this.cache.jobInfo[jobName] && lastBuildNumber == this.cache.jobInfo[jobName].lastBuild?.number && lastSuccessfulBuildNumber == this.cache.jobInfo[jobName].lastSuccessfulBuild?.number) {
             return this.cache.jobInfo[jobName];
         }
 

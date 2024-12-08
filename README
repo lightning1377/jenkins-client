@@ -9,6 +9,15 @@ This extension integrates Jenkins build results into VS Code, showing the build 
 -   Supports different build states (success, failure, unstable, etc.)
 -   Configurable Jenkins server settings
 
+## Notes
+
+-   This Extension was built based on our jenkins configuration and might need updates for other configurations. We use:
+
+    -   FreeStyle Builds
+    -   Jenkins Git Plugin
+
+    If it's not working for you, feel free to raise a PR to add support for your own jenkins configuration
+
 ## Requirements
 
 -   VS Code 1.80.0 or higher

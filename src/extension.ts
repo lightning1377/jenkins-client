@@ -9,6 +9,8 @@ let pollingInterval: NodeJS.Timeout | null = null;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const showBuildStatusCommand = "jenkins-build-status.showBuildStatus";
+    const clearJenkinsServiceCacheCommand = "jenkins-build-status.clearJenkinsServiceCache";
+    const openQuickPickCommand = "jenkins-build-status.openQuickPick";
 
     // Create an Output Channel for Jenkins Build Status
     const outputChannel = vscode.window.createOutputChannel("Jenkins Build Status");
@@ -27,14 +29,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const gitService = new GitService(outputChannel);
 
     // Initialize status bar manager
-    statusBarManager = new StatusBarManager(showBuildStatusCommand);
+    statusBarManager = new StatusBarManager(openQuickPickCommand, [
+        { title: "Show Jenkins Build Status", command: showBuildStatusCommand },
+        { title: "Clear Jenkins Service Cache", command: clearJenkinsServiceCacheCommand }
+    ]);
     context.subscriptions.push(statusBarManager.statusBarItem);
 
     const config = vscode.workspace.getConfiguration("jenkinsBuildStatus");
     const minPollWaitTime = config.get<number>("minPollWaitTime") ?? 5;
     const maxPollCount = config.get<number>("maxPollCount") ?? 60;
 
-    const disposable = vscode.commands.registerCommand(showBuildStatusCommand, async () => {
+    // Register show build status command
+    const showBuildStatusDisposable = vscode.commands.registerCommand(showBuildStatusCommand, async () => {
         try {
             const branchName = await gitService.getCurrentBranch();
             if (!branchName) {
@@ -73,8 +79,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             outputChannel.appendLine(`Error: ${error instanceof Error ? error.message : String(error)}`);
         }
     });
+    context.subscriptions.push(showBuildStatusDisposable);
 
-    context.subscriptions.push(disposable);
+    // Register clear jenkins service cache command
+    const clearJenkinsServiceCacheDisposable = vscode.commands.registerCommand(clearJenkinsServiceCacheCommand, () => {
+        jenkinsService.clearCache();
+    });
+    context.subscriptions.push(clearJenkinsServiceCacheDisposable);
+
+    // Register the quick pick command
+    const showQuickPickMenuDisposable = vscode.commands.registerCommand(openQuickPickCommand, async () => {
+        const selectedCommand = await statusBarManager.showQuickPickMenu();
+        if (!selectedCommand) return;
+        vscode.commands.executeCommand(selectedCommand);
+    });
+    context.subscriptions.push(showQuickPickMenuDisposable);
 
     // Initial status check
     vscode.commands.executeCommand(showBuildStatusCommand);

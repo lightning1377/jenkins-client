@@ -24,6 +24,17 @@
         "title": "Show Jenkins Build Status",
         "category": "Jenkins",
         "icon": "$(git-fetch)"
+      },
+      {
+        "command": "jenkins-build-status.clearJenkinsServiceCache",
+        "title": "Clear Jenkins Service Cache",
+        "category": "Jenkins",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "jenkins-build-status.openQuickPick",
+        "title": "Open Jenkins Quick Pick Menu",
+        "enablement": "false"
       }
     ],
     "configuration": {
