@@ -4,6 +4,8 @@ Jenkins Client is a small VS Code extension that shows the Jenkins build result 
 
 It is built for teams using Jenkins freestyle jobs with the Jenkins Git plugin, with support for branch-specific job mapping when different branches are built by different jobs.
 
+<img src="./icon.png" alt="Jenkins Client icon" width="240">
+
 ## Features
 
 - Shows Jenkins build status in the VS Code status bar
@@ -29,9 +31,9 @@ It is built for teams using Jenkins freestyle jobs with the Jenkins Git plugin, 
 
 ```json
 {
-  "jenkinsBuildStatus.jenkinsUrl": "https://jenkins.example.com",
-  "jenkinsBuildStatus.username": "your-jenkins-user",
-  "jenkinsBuildStatus.jobName": "My Jenkins Job"
+    "jenkinsBuildStatus.jenkinsUrl": "https://jenkins.example.com",
+    "jenkinsBuildStatus.username": "your-jenkins-user",
+    "jenkinsBuildStatus.jobName": "My Jenkins Job"
 }
 ```
 
@@ -44,11 +46,11 @@ Use `branchSpecificJobs` when some branches are built by a Jenkins job other tha
 
 ```json
 {
-  "jenkinsBuildStatus.jobName": "Main Build",
-  "jenkinsBuildStatus.branchSpecificJobs": {
-    "release/1.0": "Release Build",
-    "develop": "Develop Build"
-  }
+    "jenkinsBuildStatus.jobName": "Main Build",
+    "jenkinsBuildStatus.branchSpecificJobs": {
+        "release/1.0": "Release Build",
+        "develop": "Develop Build"
+    }
 }
 ```
 
@@ -60,7 +62,7 @@ Use `excludeBranches` for branches that are not built by Jenkins.
 
 ```json
 {
-  "jenkinsBuildStatus.excludeBranches": ["docs", "prototype"]
+    "jenkinsBuildStatus.excludeBranches": ["docs", "prototype"]
 }
 ```
 
