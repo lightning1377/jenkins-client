@@ -1,4 +1,3 @@
-// import * as fs from "fs";
 import * as vscode from "vscode";
 import { JenkinsService } from "./services/jenkins-service";
 import { GitService } from "./services/git-service";
@@ -7,31 +6,28 @@ import { StatusBarManager } from "./ui/status-bar-manager";
 let statusBarManager: StatusBarManager;
 let pollingInterval: NodeJS.Timeout | null = null;
 
+const apiTokenSecretKey = "jenkinsBuildStatus.apiToken";
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    const showBuildStatusCommand = "jenkins-build-status.showBuildStatus";
-    const clearJenkinsServiceCacheCommand = "jenkins-build-status.clearJenkinsServiceCache";
-    const openQuickPickCommand = "jenkins-build-status.openQuickPick";
+    const showBuildStatusCommand = "jenkins-client.showBuildStatus";
+    const clearJenkinsServiceCacheCommand = "jenkins-client.clearJenkinsServiceCache";
+    const setApiTokenCommand = "jenkins-client.setApiToken";
+    const clearApiTokenCommand = "jenkins-client.clearApiToken";
+    const openQuickPickCommand = "jenkins-client.openQuickPick";
 
-    // Create an Output Channel for Jenkins Build Status
-    const outputChannel = vscode.window.createOutputChannel("Jenkins Build Status");
-
-    // Initialize jenkins service
-    const jenkinsService = new JenkinsService(outputChannel);
-    const isJenkinsConnected = await jenkinsService.getIsReady();
-    if (!isJenkinsConnected) {
-        outputChannel.appendLine("Not connected to Jenkins api, Extension was not activated, Check your configuration and reload");
-        return;
-    }
-
-    outputChannel.appendLine("Jenkins Connection Established.");
-
-    // Initialize git service
-    const gitService = new GitService(outputChannel);
+    // Create an Output Channel for Jenkins Client
+    const outputChannel = vscode.window.createOutputChannel("Jenkins Client");
+    context.subscriptions.push(outputChannel);
+    await migrateLegacyApiToken(context, outputChannel);
+    let jenkinsService = new JenkinsService(outputChannel, await context.secrets.get(apiTokenSecretKey));
+    let gitService: GitService | undefined;
 
     // Initialize status bar manager
     statusBarManager = new StatusBarManager(openQuickPickCommand, [
-        { title: "Show Jenkins Build Status", command: showBuildStatusCommand },
-        { title: "Clear Jenkins Service Cache", command: clearJenkinsServiceCacheCommand }
+        { title: "Show Jenkins Client Status", command: showBuildStatusCommand },
+        { title: "Clear Jenkins Service Cache", command: clearJenkinsServiceCacheCommand },
+        { title: "Set Jenkins API Token", command: setApiTokenCommand },
+        { title: "Clear Jenkins API Token", command: clearApiTokenCommand }
     ]);
     context.subscriptions.push(statusBarManager.statusBarItem);
 
@@ -41,8 +37,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const excludeBranches = config.get<string[]>("excludeBranches") ?? [];
 
     // Register show build status command
-    const showBuildStatusDisposable = vscode.commands.registerCommand(showBuildStatusCommand, async () => {
+    const showBuildStatusDisposable = vscode.commands.registerCommand(showBuildStatusCommand, async (showWarnings = true) => {
         try {
+            const isJenkinsConnected = await jenkinsService.getIsReady();
+            if (!isJenkinsConnected) {
+                statusBarManager.setStatusToUnknown(false);
+                if (showWarnings) {
+                    await showSetupWarning(setApiTokenCommand);
+                }
+                return;
+            }
+
+            if (!gitService) gitService = new GitService(outputChannel);
             const branchName = await gitService.getCurrentBranch();
             if (!branchName || excludeBranches.includes(branchName)) {
                 statusBarManager.setStatusToUnknown(false);
@@ -88,6 +94,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
     context.subscriptions.push(clearJenkinsServiceCacheDisposable);
 
+    const setApiTokenDisposable = vscode.commands.registerCommand(setApiTokenCommand, async () => {
+        const apiToken = await vscode.window.showInputBox({
+            ignoreFocusOut: true,
+            password: true,
+            placeHolder: "Jenkins API token",
+            prompt: "Enter the Jenkins API token for the configured Jenkins username"
+        });
+
+        if (apiToken === undefined) return;
+
+        const trimmedApiToken = apiToken.trim();
+        if (!trimmedApiToken) {
+            vscode.window.showWarningMessage("Jenkins API token was not saved because it was empty.");
+            return;
+        }
+
+        await context.secrets.store(apiTokenSecretKey, trimmedApiToken);
+        jenkinsService = new JenkinsService(outputChannel, trimmedApiToken);
+        jenkinsService.clearCache();
+        vscode.window.showInformationMessage("Jenkins API token saved.");
+        await vscode.commands.executeCommand(showBuildStatusCommand);
+    });
+    context.subscriptions.push(setApiTokenDisposable);
+
+    const clearApiTokenDisposable = vscode.commands.registerCommand(clearApiTokenCommand, async () => {
+        await context.secrets.delete(apiTokenSecretKey);
+        jenkinsService = new JenkinsService(outputChannel);
+        jenkinsService.clearCache();
+        statusBarManager.setStatusToUnknown(false);
+        vscode.window.showInformationMessage("Jenkins API token cleared.");
+    });
+    context.subscriptions.push(clearApiTokenDisposable);
+
     // Register the quick pick command
     const showQuickPickMenuDisposable = vscode.commands.registerCommand(openQuickPickCommand, async () => {
         const selectedCommand = await statusBarManager.showQuickPickMenu();
@@ -97,18 +136,48 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(showQuickPickMenuDisposable);
 
     // Initial status check
-    vscode.commands.executeCommand(showBuildStatusCommand);
+    vscode.commands.executeCommand(showBuildStatusCommand, false);
 
-    pollingInterval = await gitService.startPollingForPushEvent({
-        onPush: async (commitHash, branchName) => {
-            if (excludeBranches.includes(branchName)) {
-                statusBarManager.setStatusToUnknown(false);
-                return;
+    try {
+        if (!gitService) gitService = new GitService(outputChannel);
+        pollingInterval = await gitService.startPollingForPushEvent({
+            onPush: async (commitHash, branchName) => {
+                if (excludeBranches.includes(branchName)) {
+                    statusBarManager.setStatusToUnknown(false);
+                    return;
+                }
+                const isJenkinsConnected = await jenkinsService.getIsReady();
+                if (!isJenkinsConnected) {
+                    statusBarManager.setStatusToUnknown(false);
+                    return;
+                }
+                statusBarManager.setStatusToUnknown(true);
+                await jenkinsService.pollForCommitHash({ commitHash, branchName, minPollWaitTime, showBuildStatusCommand });
             }
-            statusBarManager.setStatusToUnknown(true);
-            await jenkinsService.pollForCommitHash({ commitHash, branchName, minPollWaitTime, showBuildStatusCommand });
-        }
-    });
+        });
+    } catch (error) {
+        outputChannel.appendLine(`Git polling was not started: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}
+
+async function migrateLegacyApiToken(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): Promise<void> {
+    const existingSecret = await context.secrets.get(apiTokenSecretKey);
+    if (existingSecret) return;
+
+    const legacyApiToken = vscode.workspace.getConfiguration("jenkinsBuildStatus").get<string>("apiToken");
+    if (!legacyApiToken) return;
+
+    await context.secrets.store(apiTokenSecretKey, legacyApiToken);
+    outputChannel.appendLine("Migrated Jenkins API token from settings to VS Code Secret Storage.");
+}
+
+async function showSetupWarning(setApiTokenCommand: string): Promise<void> {
+    const action = await vscode.window.showWarningMessage("Jenkins Client is not configured or cannot connect to Jenkins.", "Set API Token", "Open Settings");
+    if (action === "Set API Token") {
+        await vscode.commands.executeCommand(setApiTokenCommand);
+    } else if (action === "Open Settings") {
+        await vscode.commands.executeCommand("workbench.action.openSettings", "jenkinsBuildStatus");
+    }
 }
 
 export function deactivate(): void {

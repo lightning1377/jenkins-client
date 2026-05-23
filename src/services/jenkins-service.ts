@@ -3,8 +3,9 @@ import { hasLastBuiltRevision, type BuildDetails, type JobInfo } from "../types/
 
 export class JenkinsService {
     private config: vscode.WorkspaceConfiguration;
-    private authHeader: string;
     private jenkinsUrl?: string;
+    private username?: string;
+    private apiToken?: string;
     private jobName: string;
     private branchSpecificJobs: Record<string, string>;
     private cache: {
@@ -17,20 +18,16 @@ export class JenkinsService {
     private outputChannel: vscode.OutputChannel;
     private isCsrfEnabled = true;
 
-    constructor(outputChannel: vscode.OutputChannel) {
+    constructor(outputChannel: vscode.OutputChannel, apiToken?: string) {
         // Load Jenkins configuration from workspace settings
         this.config = vscode.workspace.getConfiguration("jenkinsBuildStatus");
 
         // Retrieve configuration settings
-        this.jenkinsUrl = this.config.get<string>("jenkinsUrl");
-        const username = this.config.get<string>("username");
-        const apiToken = this.config.get<string>("apiToken");
+        this.jenkinsUrl = this.config.get<string>("jenkinsUrl")?.replace(/\/+$/, "");
+        this.username = this.config.get<string>("username");
+        this.apiToken = apiToken;
         this.jobName = this.config.get<string>("jobName") ?? "";
         this.branchSpecificJobs = this.config.get<Record<string, string>>("branchSpecificJobs") ?? {};
-
-        // Prepare the Basic Authentication header
-        const credentials = `${username}:${apiToken}`;
-        this.authHeader = `Basic ${btoa(credentials)}`;
 
         this.outputChannel = outputChannel;
     }
@@ -41,7 +38,7 @@ export class JenkinsService {
 
     async getIsReady(): Promise<boolean> {
         this.outputChannel.appendLine("Checking if we're connected to Jenkins...");
-        if (!this.jenkinsUrl || !this.authHeader || (!this.jobName && Object.keys(this.branchSpecificJobs).length == 0)) {
+        if (!this.jenkinsUrl || !this.username || !this.apiToken || (!this.jobName && Object.keys(this.branchSpecificJobs).length == 0)) {
             return false;
         }
         try {
@@ -49,6 +46,7 @@ export class JenkinsService {
             await this.getCrumb();
             return true;
         } catch (error) {
+            this.outputChannel.appendLine(`[JenkinsService] Jenkins readiness check failed: ${error instanceof Error ? error.message : String(error)}`);
             return false;
         }
     }
@@ -79,7 +77,7 @@ export class JenkinsService {
         }
 
         this.outputChannel.appendLine(`Fetching BuildDetails for ${jobName}#${buildNumber}...`);
-        const buildDetails = await this.apiRequest<BuildDetails>(`job/${jobName}/${buildNumber}`);
+        const buildDetails = await this.apiRequest<BuildDetails>(`${this.getJobPath(jobName)}/${buildNumber}`);
 
         // Cache details if status exists (build is over)
         if (buildDetails.result) {
@@ -143,7 +141,7 @@ export class JenkinsService {
 
         const url = `${this.jenkinsUrl}/crumbIssuer/api/json`;
         const response = await fetch(url, {
-            headers: { Authorization: this.authHeader }
+            headers: { Authorization: this.getAuthHeader() }
         });
 
         if (response.status === 404) {
@@ -172,7 +170,7 @@ export class JenkinsService {
         const crumb = await this.getCrumb();
         const url = `${this.jenkinsUrl}/${endpoint}/api/json` + (tree ? `?tree=${tree}` : "");
         const headers: RequestInit["headers"] = {
-            Authorization: this.authHeader,
+            Authorization: this.getAuthHeader(),
             "Content-Type": "application/json"
         };
 
@@ -196,18 +194,31 @@ export class JenkinsService {
         const buildInfo = await this.apiRequest<{
             lastBuild: { number: number };
             lastSuccessfulBuild: { number: number };
-        }>(`job/${jobName}`, "lastBuild[number],lastSuccessfulBuild[number]");
+        }>(this.getJobPath(jobName), "lastBuild[number],lastSuccessfulBuild[number]");
 
-        const lastBuildNumber = buildInfo?.lastBuild.number;
-        const lastSuccessfulBuildNumber = buildInfo?.lastSuccessfulBuild.number;
+        const lastBuildNumber = buildInfo?.lastBuild?.number;
+        const lastSuccessfulBuildNumber = buildInfo?.lastSuccessfulBuild?.number;
 
         if (this.cache.jobInfo[jobName] && lastBuildNumber == this.cache.jobInfo[jobName].lastBuild?.number && lastSuccessfulBuildNumber == this.cache.jobInfo[jobName].lastSuccessfulBuild?.number) {
             return this.cache.jobInfo[jobName];
         }
 
         this.outputChannel.appendLine(`Fetching JobInfo for ${jobName}...`);
-        const jobInfo = await this.apiRequest<JobInfo>(`job/${jobName}`);
+        const jobInfo = await this.apiRequest<JobInfo>(this.getJobPath(jobName));
         this.cache.jobInfo[jobName] = jobInfo;
         return jobInfo;
+    }
+
+    private getAuthHeader(): string {
+        const credentials = `${this.username}:${this.apiToken}`;
+        return `Basic ${Buffer.from(credentials).toString("base64")}`;
+    }
+
+    private getJobPath(jobName: string): string {
+        return jobName
+            .split("/")
+            .filter(Boolean)
+            .map((segment) => `job/${encodeURIComponent(segment)}`)
+            .join("/");
     }
 }

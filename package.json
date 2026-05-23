@@ -1,11 +1,31 @@
 {
-  "name": "jenkins-build-status",
-  "displayName": "Jenkins Build Status",
+  "name": "jenkins-client",
+  "displayName": "Jenkins Client",
   "icon": "icon.png",
-  "publisher": "Siavash",
+  "publisher": "lightning1377",
   "description": "Show Jenkins build results for current git branch",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lightning1377/jenkins-client.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lightning1377/jenkins-client/issues"
+  },
+  "homepage": "https://github.com/lightning1377/jenkins-client#readme",
+  "keywords": [
+    "jenkins",
+    "build-status",
+    "ci",
+    "git",
+    "statusbar",
+    "vscode-extension"
+  ],
+  "galleryBanner": {
+    "color": "#111827",
+    "theme": "dark"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
@@ -20,25 +40,37 @@
   "contributes": {
     "commands": [
       {
-        "command": "jenkins-build-status.showBuildStatus",
-        "title": "Show Jenkins Build Status",
+        "command": "jenkins-client.showBuildStatus",
+        "title": "Show Jenkins Client Status",
         "category": "Jenkins",
         "icon": "$(git-fetch)"
       },
       {
-        "command": "jenkins-build-status.clearJenkinsServiceCache",
+        "command": "jenkins-client.clearJenkinsServiceCache",
         "title": "Clear Jenkins Service Cache",
         "category": "Jenkins",
         "icon": "$(trash)"
       },
       {
-        "command": "jenkins-build-status.openQuickPick",
+        "command": "jenkins-client.setApiToken",
+        "title": "Set Jenkins API Token",
+        "category": "Jenkins",
+        "icon": "$(key)"
+      },
+      {
+        "command": "jenkins-client.clearApiToken",
+        "title": "Clear Jenkins API Token",
+        "category": "Jenkins",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "jenkins-client.openQuickPick",
         "title": "Open Jenkins Quick Pick Menu",
         "enablement": "false"
       }
     ],
     "configuration": {
-      "title": "Jenkins Build Status",
+      "title": "Jenkins Client",
       "properties": {
         "jenkinsBuildStatus.jenkinsUrl": {
           "type": "string",
@@ -49,11 +81,6 @@
           "type": "string",
           "default": "",
           "description": "Jenkins username"
-        },
-        "jenkinsBuildStatus.apiToken": {
-          "type": "string",
-          "default": "",
-          "description": "Jenkins API token or password"
         },
         "jenkinsBuildStatus.jobName": {
           "type": "string",
@@ -86,7 +113,9 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "rimraf out/** && tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "lint": "eslint src --ext ts",
+    "watch": "tsc -watch -p ./",
+    "vsce": "node scripts/package-vsix.js"
   },
   "devDependencies": {
     "@types/node": "^20.4.5",
@@ -99,13 +128,5 @@
   },
   "dependencies": {
     "simple-git": "^3.19.1"
-  },
-  "files": [
-    "out",
-    "icon.png",
-    "LICENSE.md",
-    "README",
-    "package.json",
-    "node_modules"
-  ]
+  }
 }

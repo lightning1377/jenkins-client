@@ -18,7 +18,7 @@ export class GitService {
         }
     }
 
-    public async startPollingForPushEvent(params: { onPush: (commitHash: string, currentBranch: string) => void }): Promise<NodeJS.Timeout> {
+    public async startPollingForPushEvent(params: { onPush: (commitHash: string, currentBranch: string) => void | Promise<void> }): Promise<NodeJS.Timeout> {
         // Initial local commit hash
         let lastLocalCommitHash = await this.getLocalCommitHash();
         let isCheckForPush = false;
@@ -44,7 +44,7 @@ export class GitService {
 
                 if (currentLocalHash === currentRemoteHash) {
                     isCheckForPush = false;
-                    params.onPush(currentRemoteHash, currentBranch);
+                    await params.onPush(currentRemoteHash, currentBranch);
                 }
             } catch (error) {
                 this.outputChannel.appendLine("[GitService] Error during polling: " + (error instanceof Error ? error.message : String(error)));
