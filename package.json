@@ -115,7 +115,8 @@
     "compile": "rimraf out/** && tsc -p ./",
     "lint": "eslint src --ext ts",
     "watch": "tsc -watch -p ./",
-    "vsce": "node scripts/package-vsix.js"
+    "vsce": "node scripts/package-vsix.js",
+    "check-release-tag": "node scripts/check-release-tag.js"
   },
   "devDependencies": {
     "@types/node": "^20.4.5",

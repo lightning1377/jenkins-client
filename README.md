@@ -84,6 +84,28 @@ npm run compile
 
 To debug the extension, open this folder in VS Code and run the **Launch Extension** configuration.
 
+## Packaging
+
+```bash
+npm run vsce
+```
+
+The packaged VSIX is written to `releases/`.
+
+## Releasing
+
+1. Update `version` in `package.json` and `package-lock.json`.
+2. Commit the version change.
+3. Create and push a matching tag:
+
+```bash
+git tag v0.1.0
+git push origin main
+git push origin v0.1.0
+```
+
+GitHub Actions builds the VSIX and attaches it to a GitHub Release when a `v*.*.*` tag is pushed.
+
 ## Release Notes
 
 See [CHANGELOG.md](CHANGELOG.md).
