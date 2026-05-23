@@ -123,6 +123,7 @@
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^8.17.0",
     "@typescript-eslint/parser": "^8.17.0",
+    "@vscode/vsce": "^3.9.1",
     "eslint": "^8.57.1",
     "rimraf": "^6.0.1",
     "typescript": "^5.7.2"
