@@ -2,7 +2,7 @@
   "name": "jenkins-client",
   "displayName": "Jenkins Client",
   "icon": "icon.png",
-  "publisher": "lightning1377",
+  "publisher": "Siavash",
   "description": "Show Jenkins build results for current git branch",
   "version": "0.1.0",
   "license": "MIT",
@@ -14,6 +14,10 @@
     "url": "https://github.com/lightning1377/jenkins-client/issues"
   },
   "homepage": "https://github.com/lightning1377/jenkins-client#readme",
+  "author": {
+    "name": "Siavash Kahe",
+    "email": "s.kahe98@gmail.com"
+  },
   "keywords": [
     "jenkins",
     "build-status",

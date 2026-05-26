@@ -73,6 +73,44 @@ Use `excludeBranches` for branches that are not built by Jenkins.
 - **Jenkins: Set Jenkins API Token** - save your Jenkins API token in VS Code Secret Storage
 - **Jenkins: Clear Jenkins API Token** - remove the saved Jenkins API token
 
+## Using the Client API (Production Snippet)
+
+If you need to query Jenkins programmatically using the underlying client implementation ([JenkinsService](src/services/jenkins-service.ts)), here is a clean, minimal TypeScript example of how to initialize and use it:
+
+```typescript
+import { JenkinsService } from './services/jenkins-service';
+import * as vscode from 'vscode';
+
+// Initialize the Jenkins service client
+const outputChannel = vscode.window.createOutputChannel("Jenkins API Client");
+const jenkinsClient = new JenkinsService(outputChannel, "your-api-token");
+
+// Query build status for a specific branch
+async function checkBranchBuild(branchName: string) {
+    const isReady = await jenkinsClient.getIsReady();
+    if (!isReady) {
+        console.error("Jenkins service is not ready. Check URL, Username, and API Token.");
+        return;
+    }
+
+    const jobName = jenkinsClient.getBranchJobName(branchName);
+    console.log(`Querying job: ${jobName} for branch: ${branchName}`);
+
+    // Fetch the build details of a specific build number
+    const buildDetails = await jenkinsClient.getBuildDetails(branchName, 105);
+    console.log(`Build #${buildDetails.number} result: ${buildDetails.result}`); // 'SUCCESS', 'FAILURE', etc.
+}
+```
+
+## Why This Client?
+
+Compared to making raw HTTP calls or using bulky external Jenkins libraries, this client is designed with the following advantages:
+
+- **Zero Runtime Dependencies**: The client interacts directly with the Jenkins REST API using native `fetch` calls, eliminating external HTTP overhead and dependencies.
+- **Built-in CSRF/Crumb Handling**: The client automatically issuer-checks and appends Jenkins CSRF crumb headers (`crumbIssuer/api/json`) to mutating requests, avoiding authentication blocks in secured environments.
+- **Robust TypeScript Definitions**: Features type-safe structures (e.g., [BuildDetails](src/types/jenkins.ts) or [JobInfo](src/types/jenkins.ts)) mapping the Jenkins JSON response API.
+- **Smart in-memory Caching**: Implements a localized query cache to prevent redundant HTTP requests and ensure sub-second UI updates in the VS Code status bar.
+
 ## Limitations
 
 This extension currently targets Jenkins freestyle jobs that expose build metadata from the Jenkins Git plugin. Other Jenkins setups, such as pipelines or multibranch pipelines, may need additional mapping or API support.
