@@ -1,5 +1,7 @@
 # Jenkins Client
 
+[![Visual Studio Marketplace Installs](https://badgen.net/vs-marketplace/i/Siavash.jenkins-client?color=blue&icon=vscode)](https://marketplace.visualstudio.com/items?itemName=Siavash.jenkins-client)
+
 Jenkins Client is a small VS Code extension that shows the Jenkins build result for the current Git branch directly in the status bar.
 
 It is built for teams using Jenkins freestyle jobs with the Jenkins Git plugin, with support for branch-specific job mapping when different branches are built by different jobs.
@@ -78,8 +80,8 @@ Use `excludeBranches` for branches that are not built by Jenkins.
 If you need to query Jenkins programmatically using the underlying client implementation ([JenkinsService](src/services/jenkins-service.ts)), here is a clean, minimal TypeScript example of how to initialize and use it:
 
 ```typescript
-import { JenkinsService } from './services/jenkins-service';
-import * as vscode from 'vscode';
+import { JenkinsService } from "./services/jenkins-service";
+import * as vscode from "vscode";
 
 // Initialize the Jenkins service client
 const outputChannel = vscode.window.createOutputChannel("Jenkins API Client");
@@ -149,3 +151,14 @@ GitHub Actions builds the VSIX and attaches it to a GitHub Release when a `v*.*.
 ## Release Notes
 
 See [CHANGELOG.md](CHANGELOG.md).
+
+## Support the Project ⭐
+
+This extension is freshly launched on the VS Code Marketplace! If this tool helps you stay on top of your Jenkins builds directly from your status bar, please consider supporting its development:
+
+- **Star this repository** to improve its visibility on GitHub so other developers can discover it.
+- **Leave a review** on the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=Siavash.jenkins-client&ssr=false#review-details) sharing your feedback.
+
+### Feedback & Contributing
+
+Found a bug or have a feature request? Please feel free to open an issue or submit a pull request on the [GitHub repository](https://github.com/lightning1377/jenkins-client).
